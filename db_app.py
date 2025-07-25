@@ -51,17 +51,23 @@ def parse_excel(file):
         row_index = 6
         while True:
             row = [ws.cell(row=row_index, column=col_index + i).value for i in range(7)]
-            if all(cell is None for cell in row):
+            if all(cell is None or str(cell).strip() in ["#N/A", "#N/A N/A", "N/A", "na", "NA"] for cell in row):
                 break
-            data.append(row)
+            # Replace common invalid values with None
+            cleaned_row = [None if str(cell).strip() in ["#N/A", "#N/A N/A", "N/A", "na", "NA"] else cell for cell in row]
+            data.append(cleaned_row)
             row_index += 1
         if data:
             df = pd.DataFrame(data, columns=["Date", "Open", "High", "Low", "Close", "Volume", "Value"])
             df.insert(0, "Stock", stock)
-            df["Date"] = pd.to_datetime(df["Date"]).dt.date
+            df["Date"] = pd.to_datetime(df["Date"], errors="coerce").dt.date
+            # Ensure numeric conversion
+            for col in ["Open", "High", "Low", "Close", "Volume", "Value"]:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
             datasets.append(df)
         col_index += 8
     return pd.concat(datasets, ignore_index=True) if datasets else pd.DataFrame()
+
 
 def save_to_db(df, db_path):
     conn = sqlite3.connect(db_path)
