@@ -26,7 +26,7 @@ st.set_page_config(layout="wide", page_title="📈 Stock OHLC Database App")
 
 
 # Template download
-template_path = "Integrated_BTH_Template.xlsx"
+template_path = "BTH_Template.xlsx"
 if os.path.exists(template_path):
     with open(template_path, "rb") as f:
         st.sidebar.download_button("📥 Download BTH Template Sample", f, "BTH_Template_Sample.xlsx")
