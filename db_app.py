@@ -3,25 +3,26 @@ import streamlit as st
 import pandas as pd
 import sqlite3
 import openpyxl
+import statsmodels.api as sm
 from drive_utils import download_db_from_drive, upload_db_to_drive
 
-# --- Configuration ---
+# Configuration
 DB_FILE_NAME = "ohlc_bbdata.db"
 DRIVE_FOLDER_ID = "1ajjaIMmHobK-kU0NxUfk_cBrhy7ZPGmR"
 DRIVE_FILE_ID = "1FWoXxyUSgnOZkC7Gxt_Vjpco0G2L1VJo"
 
-# --- Download DB if missing ---
+# Download DB if missing
 if not os.path.exists(DB_FILE_NAME):
     if DRIVE_FILE_ID:
         with st.spinner("Downloading DB from Google Drive..."):
             download_db_from_drive(DRIVE_FILE_ID, DB_FILE_NAME)
             st.success("Database downloaded.")
     else:
-        st.warning("No local database found and no Drive file ID provided.")
+        st.warning("No local DB found and no DRIVE_FILE_ID specified.")
 
 st.title("📈 Stock OHLC Database Update")
 
-# --- Download Template ---
+# Template download
 template_path = "data/Integrated_BTH_Template.xlsx"
 if os.path.exists(template_path):
     with open(template_path, "rb") as f:
@@ -29,11 +30,10 @@ if os.path.exists(template_path):
 else:
     st.sidebar.info("ℹ️ BTH Template not found.")
 
-# --- Mode Selection ---
+# Mode
 mode = st.sidebar.selectbox("Select Mode", ["Update / Create Stock Database", "Read an Existing Database"])
-db_path = DB_FILE_NAME
 
-# --- Helper Functions ---
+# Functions
 def parse_excel(file):
     wb = openpyxl.load_workbook(file, data_only=True)
     ws = wb.active
@@ -97,7 +97,7 @@ def read_database(db_path):
     conn.close()
     return df
 
-# --- Mode 1: Upload and Update DB ---
+# === Mode: Upload / Create ===
 if mode == "Update / Create Stock Database":
     uploaded_file = st.sidebar.file_uploader("Upload Excel File", type=["xlsx"])
     if uploaded_file:
@@ -107,7 +107,7 @@ if mode == "Update / Create Stock Database":
             st.subheader("📋 Preview of Uploaded Data with VWAP")
             st.dataframe(parsed_df.head(10))
             if st.sidebar.button("Save to Database"):
-                new_rows = save_to_db(parsed_df, db_path)
+                new_rows = save_to_db(parsed_df, DB_FILE_NAME)
                 if not new_rows.empty:
                     summary = new_rows.groupby("Stock")["Date"].agg(["min", "max"]).reset_index()
                     summary.columns = ["Stock", "Date From", "Date To"]
@@ -120,10 +120,10 @@ if mode == "Update / Create Stock Database":
 
     if st.sidebar.button("📤 Upload DB to Google Drive"):
         with st.spinner("Uploading to Google Drive..."):
-            file_id = upload_db_to_drive(db_path, DRIVE_FOLDER_ID)
+            file_id = upload_db_to_drive(DB_FILE_NAME, DRIVE_FOLDER_ID)
             st.success(f"Uploaded DB to Google Drive. File ID: {file_id}")
 
-# --- Mode 2: Read DB with Filters ---
+# === Mode: Read DB ===
 elif mode == "Read an Existing Database":
     if "db_loaded" not in st.session_state:
         st.session_state.db_loaded = False
@@ -131,9 +131,9 @@ elif mode == "Read an Existing Database":
         st.session_state.db_data = pd.DataFrame()
 
     if st.sidebar.button("🔄 Load Database"):
-        df = read_database(db_path)
+        df = read_database(DB_FILE_NAME)
         if df.empty:
-            st.warning("⚠️ No data found in the database.")
+            st.warning("⚠️ No data found.")
             st.session_state.db_loaded = False
         else:
             st.session_state.db_data = df
@@ -141,47 +141,88 @@ elif mode == "Read an Existing Database":
 
     if st.session_state.db_loaded:
         df = st.session_state.db_data
-        st.sidebar.markdown("---")
         st.sidebar.subheader("📆 Filter Options")
-
         min_date, max_date = df["Date"].min(), df["Date"].max()
-        date_range = st.sidebar.date_input("Select Date Range", [min_date, max_date], min_value=min_date, max_value=max_date)
+        date_range = st.sidebar.date_input("Select Date Range", [min_date, max_date])
 
         stocks = df["Stock"].unique().tolist()
-        use_input_field = st.sidebar.checkbox("🔘 Enable Stock List Input", value=False)
+        use_input = st.sidebar.checkbox("🔘 Enable Stock List Input", False)
 
-        if use_input_field:
-            raw_input = st.sidebar.text_input("Enter Stock List (comma-separated)", value="")
-            if raw_input.strip():
-                input_stocks = [s.strip().upper() for s in raw_input.split(",")]
-                filtered_stocks = [s for s in stocks if s.upper() in input_stocks]
-                selected_stocks = st.sidebar.multiselect("Select Stocks", filtered_stocks, default=filtered_stocks)
+        if use_input:
+            raw = st.sidebar.text_input("Enter Stock List (comma-separated)", "")
+            if raw.strip():
+                input_stocks = [s.strip().upper() for s in raw.split(",")]
+                filtered = [s for s in stocks if s.upper() in input_stocks]
+                selected_stocks = st.sidebar.multiselect("Select Stocks", filtered, default=filtered)
             else:
-                st.sidebar.info("ℹ️ Please input stock symbols to filter the selection.")
-                selected_stocks = st.sidebar.multiselect("Select Stocks", [], default=[])
+                st.sidebar.info("ℹ️ Enter comma-separated stock symbols.")
+                selected_stocks = []
         else:
             selected_stocks = st.sidebar.multiselect("Select Stocks", stocks, default=[])
 
         data_columns = ["Open", "High", "Low", "Close", "Volume", "Value", "VWAP"]
         selected_columns = st.sidebar.multiselect("Select Data Columns", data_columns, default=["Close"])
-
-        valid_selected_columns = [col for col in selected_columns if col in df.columns]
-        if not valid_selected_columns:
-            st.warning("⚠️ No valid columns selected.")
-            st.stop()
+        valid_columns = [col for col in selected_columns if col in df.columns]
 
         filtered_df = df[
-            (df["Date"] >= date_range[0]) &
-            (df["Date"] <= date_range[1]) &
-            (df["Stock"].isin(selected_stocks))
-        ][["Date", "Stock"] + valid_selected_columns].copy()
+            (df["Date"] >= date_range[0]) & (df["Date"] <= date_range[1]) & (df["Stock"].isin(selected_stocks))
+        ][["Date", "Stock"] + valid_columns].copy()
 
         if filtered_df.empty:
-            st.warning("⚠️ No data to display. Adjust your filters.")
+            st.warning("⚠️ No data to display.")
             st.stop()
 
         filtered_df.sort_values(["Stock", "Date"], inplace=True)
-        filtered_df[valid_selected_columns] = filtered_df.groupby("Stock")[valid_selected_columns].transform(lambda x: x.ffill())
+        filtered_df[valid_columns] = filtered_df.groupby("Stock")[valid_columns].transform(lambda x: x.ffill())
+        filtered_df["Date"] = pd.to_datetime(filtered_df["Date"]).dt.strftime("%Y-%m-%d")
 
-        st.subheader("📑 Filtered Dataset")
-        st.dataframe(filtered_df)
+        if len(valid_columns) == 1:
+            pivot_df = filtered_df.pivot(index="Date", columns="Stock", values=valid_columns[0]).sort_index()
+            st.subheader("📑 Filtered Dataset")
+            st.dataframe(pivot_df)
+
+            st.sidebar.subheader("📊 Analysis Options")
+            selected_stats = st.sidebar.multiselect("Select Analysis", ["Daily Return", "Volatility", "Correlation", "Regression"])
+
+            if "Daily Return" in selected_stats:
+                daily_return = pivot_df.pct_change().dropna()
+                st.markdown("**📈 Daily Return (% Change)**")
+                st.dataframe(daily_return)
+
+            if "Volatility" in selected_stats:
+                volatility = daily_return.std()
+                st.markdown("**📉 Volatility (Std Dev of Daily Return)**")
+                st.dataframe(volatility.to_frame(name="Volatility"))
+
+            if "Correlation" in selected_stats:
+                correlation = daily_return.corr()
+                st.markdown("**🔗 Correlation Matrix**")
+                st.dataframe(correlation)
+
+            if "Regression" in selected_stats:
+                st.markdown("**📐 Regression vs Benchmark**")
+                benchmark = st.selectbox("Select Benchmark", pivot_df.columns)
+                regressions = []
+                for stock in daily_return.columns:
+                    if stock == benchmark:
+                        continue
+                    X = sm.add_constant(daily_return[benchmark])
+                    y = daily_return[stock]
+                    model = sm.OLS(y, X).fit()
+                    regressions.append({
+                        "Stock": stock,
+                        "Beta": model.params[benchmark],
+                        "Alpha": model.params["const"],
+                        "R²": model.rsquared
+                    })
+                st.dataframe(pd.DataFrame(regressions))
+
+        else:
+            reshaped = []
+            for col in valid_columns:
+                temp = filtered_df.pivot(index="Date", columns="Stock", values=col)
+                temp.columns = [f"{stock}_{col}" for stock in temp.columns]
+                reshaped.append(temp)
+            combined = pd.concat(reshaped, axis=1).sort_index()
+            st.subheader("📑 Filtered Dataset")
+            st.dataframe(combined)
