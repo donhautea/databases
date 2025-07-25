@@ -1,13 +1,9 @@
-# drive_utils.py
-
-import os
-import io
-import streamlit as st
-from google.oauth2 import service_account
+from googleapiclient.http import MediaFileUpload
 from googleapiclient.discovery import build
-from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
+from google.oauth2 import service_account
+import streamlit as st
 
-@st.cache_resource(show_spinner=False)
+@st.cache_resource
 def get_drive_service():
     credentials = service_account.Credentials.from_service_account_info(
         st.secrets["google_drive"],
@@ -15,22 +11,24 @@ def get_drive_service():
     )
     return build("drive", "v3", credentials=credentials)
 
-def upload_db_to_drive(local_file_path, drive_folder_id):
+def upload_db_to_drive(db_path, folder_id):
     service = get_drive_service()
-    file_metadata = {
-        "name": os.path.basename(local_file_path),
-        "parents": [drive_folder_id]
-    }
-    media = MediaFileUpload(local_file_path, mimetype="application/x-sqlite3", resumable=True)
-    file = service.files().create(body=file_metadata, media_body=media, fields="id").execute()
-    return file.get("id")
 
-def download_db_from_drive(file_id, destination_path):
-    service = get_drive_service()
-    request = service.files().get_media(fileId=file_id)
-    fh = io.FileIO(destination_path, "wb")
-    downloader = MediaIoBaseDownload(fh, request)
-    done = False
-    while not done:
-        status, done = downloader.next_chunk()
- 
+    file_metadata = {
+        "name": os.path.basename(db_path),
+        "parents": [folder_id]
+    }
+
+    media = MediaFileUpload(db_path, mimetype="application/octet-stream", resumable=True)
+
+    # Check if file already exists (replace instead of duplicate)
+    query = f"'{folder_id}' in parents and name = '{os.path.basename(db_path)}' and trashed = false"
+    existing_files = service.files().list(q=query, spaces="drive", fields="files(id)").execute()
+
+    if existing_files["files"]:
+        file_id = existing_files["files"][0]["id"]
+        file = service.files().update(fileId=file_id, media_body=media).execute()
+    else:
+        file = service.files().create(body=file_metadata, media_body=media, fields="id").execute()
+
+    return file["id"]
