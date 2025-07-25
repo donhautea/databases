@@ -20,7 +20,10 @@ if not os.path.exists(DB_FILE_NAME):
     else:
         st.warning("No local DB found and no DRIVE_FILE_ID specified.")
 
-st.title("📈 Stock OHLC Database Update")
+#st.title("📈 Stock OHLC Database Update")
+# Set Streamlit app to wide layout
+st.set_page_config(layout="wide", page_title="📈 Stock OHLC Database App")
+
 
 # Template download
 template_path = "data/Integrated_BTH_Template.xlsx"
