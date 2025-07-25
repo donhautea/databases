@@ -5,12 +5,12 @@ import sqlite3
 import openpyxl
 from drive_utils import download_db_from_drive, upload_db_to_drive
 
-# Config
+# --- Configuration ---
 DB_FILE_NAME = "ohlc_bbdata.db"
 DRIVE_FOLDER_ID = "1ajjaIMmHobK-kU0NxUfk_cBrhy7ZPGmR"
-DRIVE_FILE_ID = "1FWoXxyUSgnOZkC7Gxt_Vjpco0G2L1VJo"  # Existing DB file in Drive
+DRIVE_FILE_ID = "1FWoXxyUSgnOZkC7Gxt_Vjpco0G2L1VJo"
 
-# Download from Google Drive if DB is missing
+# --- Download DB if missing ---
 if not os.path.exists(DB_FILE_NAME):
     if DRIVE_FILE_ID:
         with st.spinner("Downloading DB from Google Drive..."):
@@ -21,7 +21,7 @@ if not os.path.exists(DB_FILE_NAME):
 
 st.title("📈 Stock OHLC Database Update")
 
-# Download template if available
+# --- Download Template ---
 template_path = "data/Integrated_BTH_Template.xlsx"
 if os.path.exists(template_path):
     with open(template_path, "rb") as f:
@@ -29,10 +29,11 @@ if os.path.exists(template_path):
 else:
     st.sidebar.info("ℹ️ BTH Template not found.")
 
-# Mode selector
+# --- Mode Selection ---
 mode = st.sidebar.selectbox("Select Mode", ["Update / Create Stock Database", "Read an Existing Database"])
 db_path = DB_FILE_NAME
 
+# --- Helper Functions ---
 def parse_excel(file):
     wb = openpyxl.load_workbook(file, data_only=True)
     ws = wb.active
@@ -96,7 +97,7 @@ def read_database(db_path):
     conn.close()
     return df
 
-# --- Mode: Upload & Save ---
+# --- Mode 1: Upload and Update DB ---
 if mode == "Update / Create Stock Database":
     uploaded_file = st.sidebar.file_uploader("Upload Excel File", type=["xlsx"])
     if uploaded_file:
@@ -122,18 +123,30 @@ if mode == "Update / Create Stock Database":
             file_id = upload_db_to_drive(db_path, DRIVE_FOLDER_ID)
             st.success(f"Uploaded DB to Google Drive. File ID: {file_id}")
 
-# --- Mode: Read Existing DB with Filters ---
+# --- Mode 2: Read DB with Filters ---
 elif mode == "Read an Existing Database":
-    df = read_database(db_path)
-    if not df.empty:
+    if "db_loaded" not in st.session_state:
+        st.session_state.db_loaded = False
+    if "db_data" not in st.session_state:
+        st.session_state.db_data = pd.DataFrame()
+
+    if st.sidebar.button("🔄 Load Database"):
+        df = read_database(db_path)
+        if df.empty:
+            st.warning("⚠️ No data found in the database.")
+            st.session_state.db_loaded = False
+        else:
+            st.session_state.db_data = df
+            st.session_state.db_loaded = True
+
+    if st.session_state.db_loaded:
+        df = st.session_state.db_data
         st.sidebar.markdown("---")
         st.sidebar.subheader("📆 Filter Options")
 
-        # Filter by date
         min_date, max_date = df["Date"].min(), df["Date"].max()
         date_range = st.sidebar.date_input("Select Date Range", [min_date, max_date], min_value=min_date, max_value=max_date)
 
-        # Filter by stock
         stocks = df["Stock"].unique().tolist()
         use_input_field = st.sidebar.checkbox("🔘 Enable Stock List Input", value=False)
 
@@ -149,7 +162,6 @@ elif mode == "Read an Existing Database":
         else:
             selected_stocks = st.sidebar.multiselect("Select Stocks", stocks, default=[])
 
-        # Filter by columns
         data_columns = ["Open", "High", "Low", "Close", "Volume", "Value", "VWAP"]
         selected_columns = st.sidebar.multiselect("Select Data Columns", data_columns, default=["Close"])
 
@@ -158,7 +170,6 @@ elif mode == "Read an Existing Database":
             st.warning("⚠️ No valid columns selected.")
             st.stop()
 
-        # Apply filters
         filtered_df = df[
             (df["Date"] >= date_range[0]) &
             (df["Date"] <= date_range[1]) &
@@ -174,5 +185,3 @@ elif mode == "Read an Existing Database":
 
         st.subheader("📑 Filtered Dataset")
         st.dataframe(filtered_df)
-    else:
-        st.warning("⚠️ No data found in database.")
