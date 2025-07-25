@@ -102,13 +102,24 @@ def save_to_db(df, db_path):
             PRIMARY KEY (Stock, Date)
         )
     """)
-    existing = pd.read_sql("SELECT Stock, Date FROM stock_data", conn)
-    existing["Date"] = pd.to_datetime(existing["Date"]).dt.date
-    df_new = df.merge(existing, on=["Stock", "Date"], how="left", indicator=True)
-    new_data = df_new[df_new["_merge"] == "left_only"].drop(columns=["_merge"])
+    
+    # Ensure clean data
+    df = df.dropna(subset=["Stock", "Date"]).copy()
+    df["Date"] = pd.to_datetime(df["Date"]).dt.date
+    df["VWAP"] = (df["Value"] / df["Volume"]).round(4)
+
+    # Read existing keys
+    existing_keys = pd.read_sql("SELECT Stock, Date FROM stock_data", conn)
+    existing_keys["Date"] = pd.to_datetime(existing_keys["Date"]).dt.date
+
+    # Remove duplicates before insert
+    df_merged = df.merge(existing_keys, on=["Stock", "Date"], how="left", indicator=True)
+    new_data = df_merged[df_merged["_merge"] == "left_only"].drop(columns=["_merge"])
+
     if not new_data.empty:
-        new_data["VWAP"] = (new_data["Value"] / new_data["Volume"]).round(4)
+        new_data = new_data.drop_duplicates(subset=["Stock", "Date"])
         new_data.to_sql("stock_data", conn, if_exists="append", index=False)
+
     conn.close()
     return new_data
 
