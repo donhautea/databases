@@ -8,7 +8,7 @@ from drive_utils import download_db_from_drive, upload_db_to_drive
 # Config
 DB_FILE_NAME = "ohlc_bbdata.db"
 DRIVE_FOLDER_ID = "1ajjaIMmHobK-kU0NxUfk_cBrhy7ZPGmR"
-DRIVE_FILE_ID = None  # If you want to force download from existing file, paste file ID here
+DRIVE_FILE_ID = "1FWoXxyUSgnOZkC7Gxt_Vjpco0G2L1VJo"  # originally None is entered however If you want to force download from existing file, paste file ID here
 
 # Google Drive download if DB doesn't exist
 if not os.path.exists(DB_FILE_NAME):
