@@ -1,8 +1,8 @@
 from drive_utils import download_db_from_drive, upload_db_to_drive
 
 DB_FILE_NAME = "ohlc_bbdata.db"
-DRIVE_FILE_ID = "your-db-file-id-here"  # Replace with your actual file ID
-DRIVE_FOLDER_ID = "your-folder-id-here"  # Replace with your destination folder ID
+DRIVE_FILE_ID = "1FWoXxyUSgnOZkC7Gxt_Vjpco0G2L1VJo"  # Replace with your actual file ID
+DRIVE_FOLDER_ID = "1ajjaIMmHobK-kU0NxUfk_cBrhy7ZPGmR"  # Replace with your destination folder ID
 
 # Optional: Download latest copy from Google Drive
 if not os.path.exists(DB_FILE_NAME):
