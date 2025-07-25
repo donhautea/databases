@@ -8,28 +8,28 @@ from drive_utils import download_db_from_drive, upload_db_to_drive
 # Config
 DB_FILE_NAME = "ohlc_bbdata.db"
 DRIVE_FOLDER_ID = "1ajjaIMmHobK-kU0NxUfk_cBrhy7ZPGmR"
-DRIVE_FILE_ID = "1FWoXxyUSgnOZkC7Gxt_Vjpco0G2L1VJo"  # originally None is entered however If you want to force download from existing file, paste file ID here
+DRIVE_FILE_ID = "1FWoXxyUSgnOZkC7Gxt_Vjpco0G2L1VJo"  # Existing DB file in Drive
 
-# Google Drive download if DB doesn't exist
+# Download from Google Drive if DB is missing
 if not os.path.exists(DB_FILE_NAME):
     if DRIVE_FILE_ID:
         with st.spinner("Downloading DB from Google Drive..."):
             download_db_from_drive(DRIVE_FILE_ID, DB_FILE_NAME)
             st.success("Database downloaded.")
     else:
-        st.warning("No local database file found and no DRIVE_FILE_ID specified.")
+        st.warning("No local database found and no Drive file ID provided.")
 
 st.title("📈 Stock OHLC Database Update")
 
-# Download BTH Template
+# Download template if available
 template_path = "data/Integrated_BTH_Template.xlsx"
 if os.path.exists(template_path):
     with open(template_path, "rb") as f:
         st.sidebar.download_button("📥 Download BTH Template Sample", f, "BTH_Template_Sample.xlsx")
 else:
-    st.sidebar.info("ℹ️ BTH Template sample not found.")
+    st.sidebar.info("ℹ️ BTH Template not found.")
 
-# Mode selection
+# Mode selector
 mode = st.sidebar.selectbox("Select Mode", ["Update / Create Stock Database", "Read an Existing Database"])
 db_path = DB_FILE_NAME
 
@@ -96,6 +96,7 @@ def read_database(db_path):
     conn.close()
     return df
 
+# --- Mode: Upload & Save ---
 if mode == "Update / Create Stock Database":
     uploaded_file = st.sidebar.file_uploader("Upload Excel File", type=["xlsx"])
     if uploaded_file:
@@ -121,10 +122,57 @@ if mode == "Update / Create Stock Database":
             file_id = upload_db_to_drive(db_path, DRIVE_FOLDER_ID)
             st.success(f"Uploaded DB to Google Drive. File ID: {file_id}")
 
+# --- Mode: Read Existing DB with Filters ---
 elif mode == "Read an Existing Database":
     df = read_database(db_path)
     if not df.empty:
-        st.subheader("📑 Preview of Existing Data")
-        st.dataframe(df.head(50))
+        st.sidebar.markdown("---")
+        st.sidebar.subheader("📆 Filter Options")
+
+        # Filter by date
+        min_date, max_date = df["Date"].min(), df["Date"].max()
+        date_range = st.sidebar.date_input("Select Date Range", [min_date, max_date], min_value=min_date, max_value=max_date)
+
+        # Filter by stock
+        stocks = df["Stock"].unique().tolist()
+        use_input_field = st.sidebar.checkbox("🔘 Enable Stock List Input", value=False)
+
+        if use_input_field:
+            raw_input = st.sidebar.text_input("Enter Stock List (comma-separated)", value="")
+            if raw_input.strip():
+                input_stocks = [s.strip().upper() for s in raw_input.split(",")]
+                filtered_stocks = [s for s in stocks if s.upper() in input_stocks]
+                selected_stocks = st.sidebar.multiselect("Select Stocks", filtered_stocks, default=filtered_stocks)
+            else:
+                st.sidebar.info("ℹ️ Please input stock symbols to filter the selection.")
+                selected_stocks = st.sidebar.multiselect("Select Stocks", [], default=[])
+        else:
+            selected_stocks = st.sidebar.multiselect("Select Stocks", stocks, default=[])
+
+        # Filter by columns
+        data_columns = ["Open", "High", "Low", "Close", "Volume", "Value", "VWAP"]
+        selected_columns = st.sidebar.multiselect("Select Data Columns", data_columns, default=["Close"])
+
+        valid_selected_columns = [col for col in selected_columns if col in df.columns]
+        if not valid_selected_columns:
+            st.warning("⚠️ No valid columns selected.")
+            st.stop()
+
+        # Apply filters
+        filtered_df = df[
+            (df["Date"] >= date_range[0]) &
+            (df["Date"] <= date_range[1]) &
+            (df["Stock"].isin(selected_stocks))
+        ][["Date", "Stock"] + valid_selected_columns].copy()
+
+        if filtered_df.empty:
+            st.warning("⚠️ No data to display. Adjust your filters.")
+            st.stop()
+
+        filtered_df.sort_values(["Stock", "Date"], inplace=True)
+        filtered_df[valid_selected_columns] = filtered_df.groupby("Stock")[valid_selected_columns].transform(lambda x: x.ffill())
+
+        st.subheader("📑 Filtered Dataset")
+        st.dataframe(filtered_df)
     else:
         st.warning("⚠️ No data found in database.")
