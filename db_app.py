@@ -35,47 +35,6 @@ if os.path.exists(template_path):
 mode = st.sidebar.radio("Select Mode", ["Update / Create Stock Database", "Read an Existing Database"])
 db_path = DB_FILE_NAME
 
-# --- USER CREDENTIALS (Hardcoded for now, can be replaced with DB verification) ---
-AUTHORIZED_USERS = {
-    "admin": "08201977",
-    "geonel": "miguel",
-}
-
-# --- AUTHENTICATION LOGIC ---
-st.sidebar.markdown("---")
-st.sidebar.subheader("🔐 Admin Login to Delete Records")
-
-username = st.sidebar.text_input("Username")
-password = st.sidebar.text_input("Password", type="password")
-
-is_authenticated = username in AUTHORIZED_USERS and password == AUTHORIZED_USERS[username]
-
-if is_authenticated:
-    st.sidebar.success(f"Welcome, {username}. You may proceed.")
-    
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("🗑️ Delete from Database")
-    delete_type = st.sidebar.selectbox("Delete by:", ["None", "Date", "Stock and Date"])
-    if delete_type != "None":
-        with sqlite3.connect(db_path) as conn:
-            if delete_type == "Date":
-                date_to_delete = st.sidebar.date_input("Select Date to Delete")
-                if st.sidebar.button("Delete Records by Date"):
-                    deleted = conn.execute("DELETE FROM stock_data WHERE Date = ?", (str(date_to_delete),)).rowcount
-                    st.sidebar.success(f"✅ {deleted} records deleted for {date_to_delete}")
-            elif delete_type == "Stock and Date":
-                stock_input = st.sidebar.text_input("Stock Symbol (e.g. AC)")
-                date_input = st.sidebar.date_input("Select Date")
-                if st.sidebar.button("Delete Record for Stock and Date"):
-                    deleted = conn.execute(
-                        "DELETE FROM stock_data WHERE Stock = ? AND Date = ?", (stock_input, str(date_input))
-                    ).rowcount
-                    st.sidebar.success(f"✅ {deleted} record(s) deleted for {stock_input} on {date_input}")
-else:
-    if username or password:
-        st.sidebar.error("❌ Invalid credentials.")
-    st.sidebar.info("Please log in to access delete functions.")
-
 
 # Functions
 def parse_excel(file):
@@ -194,6 +153,49 @@ if mode == "Update / Create Stock Database":
         with st.spinner("Uploading to Google Drive..."):
             file_id = upload_db_to_drive(db_path, DRIVE_FOLDER_ID)
             st.success(f"✅ Uploaded DB to Drive. File ID: {file_id}")
+
+# --- USER CREDENTIALS (Hardcoded for now, can be replaced with DB verification) ---
+AUTHORIZED_USERS = {
+    "admin": "08201977",
+    "geonel": "miguel",
+}
+
+# --- AUTHENTICATION LOGIC ---
+st.sidebar.markdown("---")
+st.sidebar.subheader("🔐 Admin Login to Delete Records")
+
+username = st.sidebar.text_input("Username")
+password = st.sidebar.text_input("Password", type="password")
+
+is_authenticated = username in AUTHORIZED_USERS and password == AUTHORIZED_USERS[username]
+
+if is_authenticated:
+    st.sidebar.success(f"Welcome, {username}. You may proceed.")
+    
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("🗑️ Delete from Database")
+    delete_type = st.sidebar.selectbox("Delete by:", ["None", "Date", "Stock and Date"])
+    if delete_type != "None":
+        with sqlite3.connect(db_path) as conn:
+            if delete_type == "Date":
+                date_to_delete = st.sidebar.date_input("Select Date to Delete")
+                if st.sidebar.button("Delete Records by Date"):
+                    deleted = conn.execute("DELETE FROM stock_data WHERE Date = ?", (str(date_to_delete),)).rowcount
+                    st.sidebar.success(f"✅ {deleted} records deleted for {date_to_delete}")
+            elif delete_type == "Stock and Date":
+                stock_input = st.sidebar.text_input("Stock Symbol (e.g. AC)")
+                date_input = st.sidebar.date_input("Select Date")
+                if st.sidebar.button("Delete Record for Stock and Date"):
+                    deleted = conn.execute(
+                        "DELETE FROM stock_data WHERE Stock = ? AND Date = ?", (stock_input, str(date_input))
+                    ).rowcount
+                    st.sidebar.success(f"✅ {deleted} record(s) deleted for {stock_input} on {date_input}")
+                    
+else:
+    if username or password:
+        st.sidebar.error("❌ Invalid credentials.")
+    st.sidebar.info("Please log in to access delete functions.")
+
 
 elif mode == "Read an Existing Database":
     df = read_database(db_path)
