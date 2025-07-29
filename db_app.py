@@ -125,9 +125,13 @@ def save_to_db(df, db_path):
         )
     """)
     
-    # Ensure clean data
+        # Clean data
     df = df.dropna(subset=["Stock", "Date"]).copy()
-    df["Date"] = pd.to_datetime(df["Date"]).dt.date
+    df["Date"] = pd.to_datetime(df["Date"], errors="coerce").dt.date  # Coerce invalid dates to NaT
+    df = df.dropna(subset=["Date"])  # Remove rows with invalid or NaT Date
+
+    # Remove default parsed '1970-01-01' rows if any
+    df = df[df["Date"] != pd.to_datetime("1970-01-01").date()]
     df["VWAP"] = (df["Value"] / df["Volume"]).round(4)
 
     # Read existing keys
