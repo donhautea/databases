@@ -125,6 +125,7 @@ def save_to_db(df, db_path):
         )
     """)
 
+    
     # Clean and convert Date
     df = df.dropna(subset=["Stock", "Date"]).copy()
     df["Date"] = pd.to_datetime(df["Date"], errors="coerce").dt.date
@@ -161,9 +162,14 @@ def read_database(db_path):
         return pd.DataFrame()
     conn = sqlite3.connect(db_path)
     df = pd.read_sql("SELECT * FROM stock_data", conn, parse_dates=["Date"])
-    df["Date"] = pd.to_datetime(df["Date"]).dt.date
     conn.close()
+
+    df["Date"] = pd.to_datetime(df["Date"], errors="coerce").dt.date
+    df = df.dropna(subset=["Date"])
+    df = df[df["Date"] != pd.to_datetime("1970-01-01").date()]  # Filter again here for safety
+
     return df
+
 
 # Main Logic
 if mode == "Update / Create Stock Database":
