@@ -125,21 +125,24 @@ def save_to_db(df, db_path):
         )
     """)
 
-    # Clean data
+    # Clean and convert Date
     df = df.dropna(subset=["Stock", "Date"]).copy()
-    df["Date"] = pd.to_datetime(df["Date"], errors="coerce").dt.date  # Coerce invalid dates to NaT
-    df = df.dropna(subset=["Date"])  # Remove rows with invalid or NaT Date
+    df["Date"] = pd.to_datetime(df["Date"], errors="coerce").dt.date
+    df = df.dropna(subset=["Date"])  # Remove rows with invalid Date
+    df = df[df["Date"] != pd.to_datetime("1970-01-01").date()]  # Explicitly remove 1970-01-01
 
-    # Remove default parsed '1970-01-01' rows if any
-    df = df[df["Date"] != pd.to_datetime("1970-01-01").date()]
+    if df.empty:
+        conn.close()
+        return pd.DataFrame()  # Nothing to insert
 
+    # Calculate VWAP
     df["VWAP"] = (df["Value"] / df["Volume"]).round(4)
 
     # Read existing keys
     existing_keys = pd.read_sql("SELECT Stock, Date FROM stock_data", conn)
     existing_keys["Date"] = pd.to_datetime(existing_keys["Date"]).dt.date
 
-    # Remove duplicates before insert
+    # Filter out duplicates
     df_merged = df.merge(existing_keys, on=["Stock", "Date"], how="left", indicator=True)
     new_data = df_merged[df_merged["_merge"] == "left_only"].drop(columns=["_merge"])
 
@@ -149,6 +152,7 @@ def save_to_db(df, db_path):
 
     conn.close()
     return new_data
+
 
 
 def read_database(db_path):
