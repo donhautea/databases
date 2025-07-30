@@ -81,34 +81,50 @@ if main_mode == "📊 Equity Monitor":
     if show_custom_summary:
         st.subheader("📊 Summary by Fund: Net Value")
         st.markdown(f"**🗓️ Period: {date_period}**")
-
+    
         grouped = full_df.groupby(["Fund", "Buy_Sell"])["Value"].sum().unstack().fillna(0)
-        grouped.columns.name = None  # remove 'Buy_Sell' as column name
+        grouped.columns.name = None
         grouped = grouped.rename(columns={"B": "Buy Value", "S": "Sell Value"})
-        
-        # Ensure columns exist and are added to the DataFrame
+    
+        # Ensure expected columns exist
         if "Buy Value" not in grouped.columns:
             grouped["Buy Value"] = 0.0
         if "Sell Value" not in grouped.columns:
             grouped["Sell Value"] = 0.0
-        
+    
         grouped["Net Value"] = grouped["Buy Value"] - grouped["Sell Value"]
         grouped["% Distribution"] = (
             (grouped["Buy Value"] + grouped["Sell Value"]) /
             (grouped["Buy Value"] + grouped["Sell Value"]).sum()
         ) * 100
-
-
+        grouped = grouped.reset_index()
+    
+        # Compose total row
+        total_row = {
+            "Fund": "Total",
+            "Buy Value": grouped["Buy Value"].sum(),
+            "Sell Value": grouped["Sell Value"].sum(),
+            "Net Value": grouped["Net Value"].sum(),
+            "% Distribution": 100.0
+        }
+    
+        summary_df = pd.concat([grouped, pd.DataFrame([total_row])], ignore_index=True)
+    
+        # Format for display
         def fmt_currency(val): return f"₱{val:,.2f}"
         def fmt_net(val): return f"<span style='color:{'green' if val >= 0 else 'red'}'>₱{val:,.2f}</span>"
         def fmt_pct(val): return f"{val:,.2f}%"
-
+    
         summary_df["Buy Value"] = summary_df["Buy Value"].apply(fmt_currency)
         summary_df["Sell Value"] = summary_df["Sell Value"].apply(fmt_currency)
         summary_df["Net Value"] = summary_df["Net Value"].apply(fmt_net)
         summary_df["% Distribution"] = summary_df["% Distribution"].apply(fmt_pct)
-
+    
+        summary_df = summary_df[["Fund", "Buy Value", "Sell Value", "Net Value", "% Distribution"]]
+    
+        st.markdown("<style>table, th, td { border: 1px solid #ccc; border-collapse: collapse; padding: 8px; }</style>", unsafe_allow_html=True)
         st.markdown(summary_df.to_html(escape=False, index=False), unsafe_allow_html=True)
+
 
     if chart_fund:
         st.subheader("Bar Chart: Total Value by Fund & Buy/Sell")
