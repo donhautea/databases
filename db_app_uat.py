@@ -7,11 +7,6 @@ import openpyxl
 import sqlite3
 import os
 
-import streamlit as st
-import pandas as pd
-import openpyxl
-import sqlite3
-import os
 import matplotlib.pyplot as plt
 import statsmodels.api as sm
 from datetime import date
