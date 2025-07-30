@@ -83,22 +83,21 @@ if main_mode == "📊 Equity Monitor":
         st.markdown(f"**🗓️ Period: {date_period}**")
 
         grouped = full_df.groupby(["Fund", "Buy_Sell"])["Value"].sum().unstack().fillna(0)
+        grouped.columns.name = None  # remove 'Buy_Sell' as column name
         grouped = grouped.rename(columns={"B": "Buy Value", "S": "Sell Value"})
-        grouped["Net Value"] = grouped.get("Buy Value", 0.0) - grouped.get("Sell Value", 0.0)
-        grouped["% Distribution"] = ((grouped["Buy Value"] + grouped["Sell Value"]) / 
-                                     (grouped["Buy Value"] + grouped["Sell Value"]).sum()) * 100
-        grouped = grouped.reset_index()
+        
+        # Ensure columns exist and are added to the DataFrame
+        if "Buy Value" not in grouped.columns:
+            grouped["Buy Value"] = 0.0
+        if "Sell Value" not in grouped.columns:
+            grouped["Sell Value"] = 0.0
+        
+        grouped["Net Value"] = grouped["Buy Value"] - grouped["Sell Value"]
+        grouped["% Distribution"] = (
+            (grouped["Buy Value"] + grouped["Sell Value"]) /
+            (grouped["Buy Value"] + grouped["Sell Value"]).sum()
+        ) * 100
 
-        summary_df = pd.concat([
-            grouped,
-            pd.DataFrame([{
-                "Fund": "Total",
-                "Buy Value": grouped["Buy Value"].sum(),
-                "Sell Value": grouped["Sell Value"].sum(),
-                "Net Value": grouped["Net Value"].sum(),
-                "% Distribution": 100.0
-            }])
-        ], ignore_index=True)
 
         def fmt_currency(val): return f"₱{val:,.2f}"
         def fmt_net(val): return f"<span style='color:{'green' if val >= 0 else 'red'}'>₱{val:,.2f}</span>"
