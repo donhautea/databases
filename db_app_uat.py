@@ -1,5 +1,12 @@
 # db_app_uat.py (with integrated equity_monitor.py logic)
 
+from drive_utils import download_db_from_drive, upload_db_to_drive
+import streamlit as st
+import pandas as pd
+import openpyxl
+import sqlite3
+import os
+
 import streamlit as st
 import pandas as pd
 import openpyxl
@@ -155,12 +162,6 @@ if main_mode == "📊 Equity Monitor":
 # === STOCK DB MANAGER ===
 elif main_mode == "📘 Stock DB Manager":
 
-    import streamlit as st
-    import pandas as pd
-    import openpyxl
-    import sqlite3
-    import os
-    
     st.set_page_config(page_title="📈 Stock Volume & Value Data Loader", layout="wide")
     st.title("📊 Stock Volume & Value Data App")
     
