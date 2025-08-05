@@ -136,7 +136,10 @@ if mode == "Update / Create Stock Database":
     if uploaded_file:
         parsed_df = parse_excel(uploaded_file)
         if not parsed_df.empty:
+            parsed_df["Value"] = pd.to_numeric(parsed_df["Value"], errors="coerce")
+            parsed_df["Volume"] = pd.to_numeric(parsed_df["Volume"], errors="coerce")
             parsed_df["VWAP"] = (parsed_df["Value"] / parsed_df["Volume"]).round(4)
+
             st.subheader("📋 Preview of Uploaded Data with VWAP")
             st.dataframe(parsed_df.head(10))
             if st.sidebar.button("💾 Save to Database"):
